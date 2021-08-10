@@ -1,0 +1,10 @@
+MODULE Platform; IMPORT SYSTEM;
+
+PROCEDURE -free (memblock: SYSTEM.PTR)	"free(memblock)";
+
+PROCEDURE DISPOSE* (VAR mem: SYSTEM.PTR);
+BEGIN
+  free(mem); mem := NIL;
+END DISPOSE;
+
+END Platform.

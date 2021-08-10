@@ -1,0 +1,29 @@
+(** portable layer for LibC - command line parameters handling *)
+MODULE CmdLine; IMPORT SYSTEM;
+
+TYPE
+  BYTE = SYSTEM.BYTE;
+  ArgPtr = POINTER TO ARRAY [notag] 128 OF CHAR;
+  ArgVec = POINTER TO ARRAY [notag] 128 OF ArgPtr;
+  String* = ARRAY 128 OF CHAR;
+
+VAR
+  paramCount-: BYTE; (* argc - 1 *)
+
+PROCEDURE -argc(): BYTE "SYSTEM_argc";
+PROCEDURE -argv(): ADRINT "(SYSTEM_ADRINT)SYSTEM_argv";
+
+PROCEDURE GetParam* (n: BYTE; VAR param: ARRAY OF CHAR);
+VAR
+  av: ArgVec;
+BEGIN
+  IF n <= paramCount THEN
+    av := SYSTEM.VAL(ArgVec, argv()); param := av[n]^$;
+  ELSE
+    param := "";
+  END;
+END GetParam;
+
+BEGIN
+  paramCount := argc() - 1;
+END CmdLine.

@@ -1,0 +1,12 @@
+MODULE [foreign] GrApp; IMPORT SYSTEM;
+
+TYPE
+  BYTE = SYSTEM.BYTE;
+  Sprite = POINTER TO ARRAY [notag] OF CHAR;
+
+PROCEDURE- Close*;
+PROCEDURE- PutSpr* (x, y: INT16; spr: Sprite);
+PROCEDURE- SetBkColor* (color: BYTE);
+PROCEDURE- SetPalette* (pal: BYTE);
+
+END GrApp.

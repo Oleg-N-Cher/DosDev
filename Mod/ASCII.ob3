@@ -1,0 +1,6 @@
+(*$MAIN*) MODULE ASCII; IMPORT Console, SYSTEM;
+VAR
+  n: SYSTEM.BYTE;
+BEGIN
+  FOR n := 32 TO 127 DO Console.WriteCh(CHR(n)) END;
+END ASCII.

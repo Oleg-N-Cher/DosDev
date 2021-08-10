@@ -1,0 +1,153 @@
+Техническое задание
+
+Разработать подпрограмму, выводящую спрайт (с попиксельной точностью)
+любой высоты, заданной в пикселях, и любой ширины, заданной в байтах
+
+Пока есть реализация только для вывода с логическими операциями.
+Нужно будет доработать наложение "по краям".
+
+PutSpr (x, y: INTEGER; spr: Sprite)
+
+Формат спрайта
+
+ширина (в байтах)
+высота (в пикселях)
+данные спрайта
+
+
+1. Вычислить по координатам x, y экранный адрес первого верхнего байта для вывода
+   И смещение для сдвига {0..3}.
+   Если 0, то байт выводится без изменений, если 1, со сдвигом на 1 пиксель вправо, и т.д.
+   Перевести (*2) смещение в количество битов для сдвига: 0=>0; 1=>2; 2=>4; 3=>6
+
+2. Получить из адреса спрайта длину len и высоту hgt спрайта, сохранить в регистрах
+
+3. Вывести линию hgt раз
+
+
+Реализация для CGA (Turbo C):
+
+void GrApp_PutSpr (unsigned int x, unsigned int y, void *spr) { /* Draw CGA sprite */
+  asm       MOV  BX, x
+  asm       MOV  CL, BL
+  asm       AND  CL, 3
+  asm       SHL  CL, 1      /* CL - число бит для сдвига */
+  asm       MOV  AX, y
+  asm       XCHG AH, AL
+  asm       SHR  AX, 1
+  asm       ADD  BH, AL
+  asm       XOR  AL, AL
+  asm       ADD  BX, AX
+  asm       SHR  AX, 1
+  asm       SHR  AX, 1
+  asm       ADD  BX, AX
+  asm       SHR  BX, 1
+  asm       SHR  BX, 1      /* BX - смещение байта */
+  asm       MOV  AX, 0B800H
+  asm       MOV  ES, AX     /* ES:BX = screen address */
+  asm       MOV  SI, spr    /* DS:SI = sprite address */
+  asm       CLD
+  asm       LODSW           /* len */
+  asm       XCHG DX, AX     /* DL = len; DH = hgt */
+  asm       MOV  DI, BX
+  asm       CMP  BH, 20H
+  asm       JNC  ODD
+      EVEN:
+  asm       CALL @DRAWLINE  /* Draw even line */
+  asm       JZ   EXIT
+  asm       ADD  DI, 2000H
+      ODD:
+  asm       CALL @DRAWLINE  /* Draw odd line */
+  asm       JZ   EXIT
+  asm       SUB  DI, 1FB0H
+  asm       JMP  SHORT EVEN
+
+Специфика CGA с его двумя плоскостями экранной памяти:
+
+    Если первая строка нечётная, GOTO 1$
+0$:
+    Вывести чётную линию
+    Если больше линий нет, выход
+    Перейти на нечётную
+1$:
+    Вывести нечётную линию
+    Если больше линий нет, выход
+    Перейти на чётную
+    GOTO 0$
+
+
+Вывод линии:
+
+   Запомнить экранный адрес и длину спрайта на стеке
+   Получить байт данных спрайта. Сохранить его (в условном регистра AL)
+   Копию регистра AL сдвинуть в нужную позицию {0..3} и вывести
+   Увеличить экранный адрес
+   Уменьшить ширину спрайта (в байтах)
+   Если ширина = 0, GOTO Последний_байт
+DRAWBYTE:
+   Получить байт данных спрайта
+   Сконструировать запомненного ранее байта и нового двухбайтовое слово для последующего сдвига
+   Запомнить новый байт вместо старого
+   Сдвинуть двухбайтовое слово в нужную позицию {0..3} и вывести
+   Увеличить экранный адрес
+   Уменьшить ширину спрайта (в байтах)
+   Если ширина # 0, GOTO DRAWBYTE
+Последний_байт:
+   Если сдвиг = 0 (весь байт уже выведен первым выводом, и его не нужно больше выводить),
+     То GOTO Выход
+   Из запомненного байта и нуля сконструировать новое слово (последнее в строке)
+   Вывести его
+Выход:
+   Восстановить длину спрайта и экранный адрес, уменьшить высоту спрайта
+   ВОЗВРАТ
+
+
+  asm @DRAWLINE:
+  asm       PUSH DI
+  asm       PUSH DX
+  asm       LODSB
+  asm       MOV  BL, AL
+  asm       SHR  BL, CL     /* 011100.10 => XX.011100 */
+  asm       OR   ES:[DI], BL
+  asm       INC  DI
+  asm       DEC  DL
+  asm       JZ   DRAWLAST
+      DRAWBYTE:
+  asm       MOV  AH, AL
+  asm       LODSB
+  asm       MOV  BX, AX
+  asm       SHR  BX, CL     /* 011100.10 11111111 => 10.111111 */
+  asm       OR   ES:[DI], BL
+  asm       INC  DI
+  asm       DEC  DL
+  asm       JNZ  DRAWBYTE
+      DRAWLAST:
+  asm       MOV  AH, AL
+  asm       XOR  AL, AL
+  asm       CMP  AL, CL
+  asm       JZ   ZEROLAST
+  asm       SHR  AX, CL     /* 111111.11 => 10.111111 */
+  asm       OR   ES:[DI], AL
+      ZEROLAST:
+  asm       POP  DX
+  asm       POP  DI
+  asm       DEC  DH
+  asm       RET
+      EXIT:;
+} /*GrApp_PutSpr*/
+
+
+Цикл по строкам вывода
+  Вывести левый байт (для PUT - с отсечением, для AND/OR/XOR - с наложением)
+  Вывести все средние байты (их может быть 0)
+  Вывести правый байт (для PUT - с отсечением, для AND/OR/XOR - с наложением)
+
+
+
+https://retrocomputing.stackexchange.com/questions/8653/how-to-use-the-darker-cga-palette-using-x86-assembly
+
+https://www.vogons.org/viewtopic.php?f=5&t=68652&start=60
+https://www.youtube.com/channel/UCWYne_mhlRE1AiN2ApjmZDA/videos?view=0&sort=dd&shelf_id=1
+https://www.youtube.com/watch?v=q1S23G3S7IA
+
+sprite library CGA
